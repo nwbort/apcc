@@ -1,0 +1,58 @@
+name: Scrape APCC Data
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs every day at midnight UTC
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    # These permissions are necessary to allow the workflow to push a commit.
+    permissions:
+      contents: write
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-python-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-python-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run scraper
+      run: python scrape_apcc.py
+
+    - name: Commit and push if changed
+      run: |
+        # Configure the git user
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Add the file to the staging area
+        git add apcc_list.csv
+        
+        # Check if there are changes to commit.
+        # The 'git diff' command will exit with 1 if there are changes, and 0 if not.
+        if ! git diff --staged --quiet; then
+          echo "Changes found. Committing and pushing..."
+          git commit -m "Update APCC list"
+          git push
+        else
+          echo "No changes to commit."
+        fi
