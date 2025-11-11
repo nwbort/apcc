@@ -32,7 +32,6 @@ jobs:
       with:
         path: ~/.cache/pip # The directory to cache
         # The cache key is based on the OS, Python version, and a hash of the requirements file.
-        # This ensures the cache is only used for an identical setup and is rebuilt if dependencies change.
         key: ${{ runner.os }}-python-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-python-
@@ -46,13 +45,13 @@ jobs:
     # 5. Run the main scraping script
     - name: Run scraper
       id: scraper # Assign an ID to this step to check its outcome later
-      run: python scrape__apcc.py
+      run: python scrape_apcc.py
 
     # 6. Upload debug HTML files IF the scraper step failed
     - name: Upload Debug Artifact on Failure
       # This condition ensures this step only runs if the "Run scraper" step fails
       if: failure() && steps.scraper.outcome == 'failure'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4 # <<< CHANGED FROM v3 to v4
       with:
         name: debug-html-pages
         path: |
@@ -74,7 +73,6 @@ jobs:
         git add apcc_list.csv
         
         # Check if there are any staged changes. If so, commit and push.
-        # The 'git diff' command will exit with 1 if there are changes.
         if ! git diff --staged --quiet; then
           echo "Changes found. Committing and pushing..."
           git commit -m "Update APCC list"
