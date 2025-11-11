@@ -6,7 +6,8 @@ import sys
 def scrape_apcc_data():
     """
     Scrapes the APCC data from the Medicare Australia website by first fetching
-    a valid ViewState and then submitting the search form with the correct field names.
+    a valid ViewState and then submitting the search form with the correct field names
+    and parsing the correct results table ID.
     """
     search_url = "https://www2.medicareaustralia.gov.au/pdsPortal/pub/approvedCollectionCentreSearch.faces"
     
@@ -24,51 +25,48 @@ def scrape_apcc_data():
         # --- Step 1: GET request to fetch the initial page and ViewState ---
         print("Fetching initial page to get ViewState token...")
         initial_response = session.get(search_url)
-
-        with open('debug_page.html', 'w', encoding='utf-8') as f:
-            f.write(initial_response.text)
-        print("Full page content saved to debug_page.html")
-
         initial_response.raise_for_status()
+
         soup = BeautifulSoup(initial_response.text, 'html.parser')
         
-        # --- FIX 1: Find the ViewState element by its NAME attribute, not ID ---
+        # Find the ViewState element by its 'name' attribute, which is more stable than the ID
         view_state_element = soup.find('input', {'name': 'javax.faces.ViewState'})
         
         if not view_state_element or 'value' not in view_state_element.attrs:
-            print("\nError: Could not find the 'javax.faces.ViewState' token using its name.")
+            print("Error: Could not find the 'javax.faces.ViewState' token.")
+            # Save the page for debugging if it fails
+            with open('debug_page.html', 'w', encoding='utf-8') as f:
+                f.write(initial_response.text)
             sys.exit(1)
             
         view_state = view_state_element['value']
-        print(f"Successfully retrieved ViewState: {view_state[:20]}...")
+        print("Successfully retrieved ViewState.")
 
-        # --- FIX 2: Use the correct form field names found in the HTML ---
+        # --- Step 2: POST request to submit the form with the correct field names ---
+        # These names were discovered by inspecting the initial HTML form
         form_data = {
-            'j_id_m': 'j_id_m', # The ID of the form itself is often required
+            'j_id_m': 'j_id_m',
             'j_id_m:gui_suburb': '*',
             'j_id_m:gui_search': 'Search',
-            'j_id_m_SUBMIT': '1', # Hidden field that indicates a form submission
+            'j_id_m_SUBMIT': '1',
             'javax.faces.ViewState': view_state,
         }
 
-        print("Submitting search form with corrected field names...")
+        print("Submitting search form...")
         search_response = session.post(search_url, data=form_data)
         search_response.raise_for_status()
 
-        # Save the results page for debugging just in case
-        with open('debug_results_page.html', 'w', encoding='utf-8') as f:
-            f.write(search_response.text)
-        print("Full results page content saved to debug_results_page.html")
-
+        # --- Step 3: Parse the results table from the response ---
         results_soup = BeautifulSoup(search_response.text, 'html.parser')
         
-        # NOTE: The results table ID might ALSO be different. Let's find it by its summary.
-        # If this fails, we will need to inspect debug_results_page.html.
-        table = results_soup.find('table', {'id': 'approvedCollectionCentreSearchForm:accp_search_result_table'})
+        # --- FINAL FIX: Use the correct table ID found in the debug_results_page.html file ---
+        table = results_soup.find('table', {'id': 'gui_accTable'})
 
         if not table:
-            print("Error: Could not find the results table after form submission.")
-            print("Please check the 'debug_results_page.html' artifact to see the response.")
+            print("Error: Could not find the results table ('gui_accTable') after form submission.")
+            # Save the results page for debugging if it fails
+            with open('debug_results_page.html', 'w', encoding='utf-8') as f:
+                f.write(search_response.text)
             sys.exit(1)
 
         print("Found results table. Writing to CSV...")
@@ -77,6 +75,7 @@ def scrape_apcc_data():
             header = [th.text.strip() for th in table.find_all('th')]
             writer.writerow(header)
             for row in table.find_all('tr'):
+                # Ensure it's a data row by checking for 'td' elements
                 if row.find_all('td'):
                     cols = [td.text.strip() for td in row.find_all('td')]
                     writer.writerow(cols)
