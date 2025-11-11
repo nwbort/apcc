@@ -6,13 +6,12 @@ import sys
 def scrape_apcc_data():
     """
     Scrapes the APCC data from the Medicare Australia website by first fetching
-    a valid ViewState and then submitting the search form. Includes enhanced debugging.
+    a valid ViewState and then submitting the search form with the correct field names.
     """
     search_url = "https://www2.medicareaustralia.gov.au/pdsPortal/pub/approvedCollectionCentreSearch.faces"
     
     session = requests.Session()
     
-    # Use more comprehensive headers to better mimic a real browser
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -26,58 +25,50 @@ def scrape_apcc_data():
         print("Fetching initial page to get ViewState token...")
         initial_response = session.get(search_url)
 
-        # --- Enhanced Debugging ---
-        print(f"Initial request status code: {initial_response.status_code}")
-        print("Response Headers:")
-        for key, value in initial_response.headers.items():
-            print(f"  {key}: {value}")
-        
-        # Save the content to a file for artifact inspection
         with open('debug_page.html', 'w', encoding='utf-8') as f:
             f.write(initial_response.text)
         print("Full page content saved to debug_page.html")
-        # --- End Debugging ---
 
         initial_response.raise_for_status()
-
         soup = BeautifulSoup(initial_response.text, 'html.parser')
         
-        view_state_element = soup.find('input', {'id': 'javax.faces.ViewState'})
+        # --- FIX 1: Find the ViewState element by its NAME attribute, not ID ---
+        view_state_element = soup.find('input', {'name': 'javax.faces.ViewState'})
         
-        if not view_state_element:
-            print("\nError: Could not find the 'javax.faces.ViewState' token in the HTML.")
-            print("The website structure may have changed, or we may not have received the correct page.")
-            print(f"Page Title: {soup.title.string if soup.title else 'No Title Found'}")
+        if not view_state_element or 'value' not in view_state_element.attrs:
+            print("\nError: Could not find the 'javax.faces.ViewState' token using its name.")
             sys.exit(1)
             
-        view_state = view_state_element.get('value')
-        if view_state is None:
-            print("\nError: Found the ViewState element, but it has no 'value' attribute.")
-            sys.exit(1)
-            
-        print("Successfully retrieved ViewState.")
+        view_state = view_state_element['value']
+        print(f"Successfully retrieved ViewState: {view_state[:20]}...")
 
-        # ... (rest of the script remains the same)
-
+        # --- FIX 2: Use the correct form field names found in the HTML ---
         form_data = {
-            'approvedCollectionCentreSearchForm': 'approvedCollectionCentreSearchForm',
-            'approvedCollectionCentreSearchForm:suburb': '*',
-            'approvedCollectionCentreSearchForm:search': 'Search',
+            'j_id_m': 'j_id_m', # The ID of the form itself is often required
+            'j_id_m:gui_suburb': '*',
+            'j_id_m:gui_search': 'Search',
+            'j_id_m_SUBMIT': '1', # Hidden field that indicates a form submission
             'javax.faces.ViewState': view_state,
         }
 
-        print("Submitting search form...")
+        print("Submitting search form with corrected field names...")
         search_response = session.post(search_url, data=form_data)
         search_response.raise_for_status()
 
+        # Save the results page for debugging just in case
+        with open('debug_results_page.html', 'w', encoding='utf-8') as f:
+            f.write(search_response.text)
+        print("Full results page content saved to debug_results_page.html")
+
         results_soup = BeautifulSoup(search_response.text, 'html.parser')
+        
+        # NOTE: The results table ID might ALSO be different. Let's find it by its summary.
+        # If this fails, we will need to inspect debug_results_page.html.
         table = results_soup.find('table', {'id': 'approvedCollectionCentreSearchForm:accp_search_result_table'})
 
         if not table:
-            print("Could not find the results table after form submission.")
-            with open('debug_results_page.html', 'w', encoding='utf-8') as f:
-                f.write(search_response.text)
-            print("Full results page content saved to debug_results_page.html")
+            print("Error: Could not find the results table after form submission.")
+            print("Please check the 'debug_results_page.html' artifact to see the response.")
             sys.exit(1)
 
         print("Found results table. Writing to CSV...")
