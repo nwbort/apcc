@@ -1,0 +1,51 @@
+name: Geocode APCC Addresses
+
+on:
+  workflow_dispatch:
+
+jobs:
+  geocode:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+    # 1. Check out the repository code
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    # 2. Set up the specified version of Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    # 3. Cache and install Python dependencies
+    - name: Cache and Install Dependencies
+      uses: ./.github/actions/setup-python
+      
+    # 4. Run the geocoding script
+    - name: Run geocoder
+      run: python geocode_addresses.py
+      env:
+        # The API key must be stored as a secret in your GitHub repository settings
+        HERE_API_KEY: ${{ secrets.HERE_API_KEY }}
+
+    # 5. Commit and push the updated geocoded CSV file
+    - name: Commit and push geocoded file
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        
+        # Stage the new geocoded file
+        git add apcc_list_geocoded.csv
+        
+        # Check for staged changes, then commit and push
+        if ! git diff --staged --quiet; then
+          echo "Geocoded file has changes. Committing and pushing..."
+          git commit -m "Update geocoded APCC list"
+          git push
+        else
+          echo "No changes to the geocoded file."
+        fi
