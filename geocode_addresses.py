@@ -42,7 +42,7 @@ def fetch_geocode(session, api_key, row):
             position = data['items'][0].get('position', {})
             lat = position.get('lat', "")
             lon = position.get('lng', "")
-            print(f"Geocoded: {address} -> ({lat}, {lon})")
+            # print(f"Geocoded: {address} -> ({lat}, {lon})")
             return (row, (lat, lon))
         else:
             print(f"Warning: Could not find coordinates for address: {address}")
