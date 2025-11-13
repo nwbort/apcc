@@ -5,8 +5,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set the maximum number of parallel worker threads.
-# Adjust this based on experimentation and API rate limits.
-MAX_WORKERS = 20
+MAX_WORKERS = 50
 
 def fetch_geocode(session, api_key, row):
     """
@@ -106,9 +105,9 @@ def geocode_addresses_parallel():
                 new_row['Longitude'] = lon
                 results.append(new_row)
 
-    # Sort results by 'ACC number' to maintain a consistent output order
-    # The key is cast to int for correct numerical sorting.
-    results.sort(key=lambda x: int(x.get('ACC number', 0)))
+    # Sort results first by 'APA number', then by 'ACC number' to maintain a consistent output order
+    # The keys are cast to int for correct numerical sorting.
+    results.sort(key=lambda x: (int(x.get('APA number', 0)), int(x.get('ACC number', 0))))
 
     # Write the collected results to the output CSV
     try:
