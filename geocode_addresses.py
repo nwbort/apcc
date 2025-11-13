@@ -5,7 +5,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Set the maximum number of parallel worker threads.
-MAX_WORKERS = 50
+MAX_WORKERS = 30
 
 def fetch_geocode(session, api_key, row):
     """
