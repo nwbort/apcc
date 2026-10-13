@@ -15,17 +15,17 @@ jobs:
     steps:
     # 1. Check out the repository code
     - name: Check out repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     # 2. Set up the specified version of Python
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v7
       with:
         python-version: '3.x'
 
     # 3. Cache Python packages for faster subsequent runs
     - name: Cache pip packages
-      uses: actions/cache@v4 # Using the latest version
+      uses: actions/cache@v6
       with:
         path: ~/.cache/pip # The directory to cache
         # The cache key is based on the OS, Python version, and a hash of the requirements file.
